@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MOOOV Weather Widget</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #000;
+            color: #fff;
+        }
+        .widget {
+            width: 100%;
+            max-width: 380px;
+            border-radius: 22px;
+            padding: 22px;
+            background: #111;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            border: 1px solid #222;
+        }
+        .title {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+        .row {
+            display: flex;
+            justify-content: space-between;
+            margin: 18px 0;
+        }
+        .item {
+            flex: 1;
+            text-align: center;
+        }
+        .label {
+            font-size: 13px;
+            opacity: 0.7;
+        }
+        .value {
+            font-size: 22px;
+            font-weight: bold;
+            margin-top: 6px;
+        }
+        .icon {
+            font-size: 28px;
+            margin-bottom: 6px;
+        }
+    </style>
+</head>
+<body>
+<div class="widget" id="weatherWidget">
+    <div class="title">Event Weather</div>
+    <div id="status">Loading...</div>
+    <div class="row">
+        <div class="item">
+            <div class="label">Temp</div>
+            <div class="value" id="temp">-</div>
+        </div>
+        <div class="item">
+            <div class="label">Rain</div>
+            <div class="value" id="rain">-</div>
+        </div>
+        <div class="item">
+            <div class="label">Wind</div>
+            <div class="value" id="wind">-</div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Read event date from URL
+const params = new URLSearchParams(window.location.search);
+let EVENT_DATE = params.get("date") || "2025-06-20";
+
+// CONFIG
+// -----------------------------
+// Set your event date and location
+const EVENT_DATE = "2025-06-20"; // Example
+const LAT = 36.7213;  // Malaga
+const LON = -4.4214;
+const TIMEZONE = "Europe/Madrid";
+
+// Switch forecast when event is within X days
+targetWindowDays = 14;
+
+// -----------------------------
+// Helper
+// -----------------------------
+function daysBetween(date1, date2) {
+    const d1 = new Date(date1);
+    const d2 = new Date(date2);
+    return (d2 - d1) / (1000 * 60 * 60 * 24);
+}
+
+async function fetchForecast() {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=temperature_2m_max,precipitation_sum,windspeed_10m_max&timezone=${TIMEZONE}`;
+    const res = await fetch(url);
+    return res.json();
+}
+
+async function fetchClimateNormals(date) {
+    const url = `https://climate-api.open-meteo.com/v1/climate?latitude=${LAT}&longitude=${LON}&start_date=${date}&end_date=${date}&models=ERA5&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max`;
+    const res = await fetch(url);
+    return res.json();
+}
+
+function setValues(temp, rain, wind, source) {
+    document.getElementById("temp").textContent = temp + "°C";
+    document.getElementById("rain").textContent = rain + " mm";
+    document.getElementById("wind").textContent = wind + " km/h";
+    document.getElementById("status").textContent = source;
+}
+
+// -----------------------------
+// Main Logic
+// -----------------------------
+(async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const diff = daysBetween(today, EVENT_DATE);
+
+    if (diff > targetWindowDays) {
+        // Use climate normals
+        try {
+            const data = await fetchClimateNormals(EVENT_DATE);
+            const d = data.daily;
+            setValues(
+                Math.round(d.temperature_2m_max[0]),
+                Math.round(d.precipitation_sum[0]),
+                Math.round(d.windspeed_10m_max[0]),
+                "Climate Averages"
+            );
+        } catch(e) {
+            document.getElementById("status").textContent = "Error loading climate data";
+        }
+    } else {
+        // Use forecast
+        try {
+            const data = await fetchForecast();
+            const d = data.daily;
+            const idx = d.time.indexOf(EVENT_DATE);
+            if (idx === -1) throw new Error("Date not in forecast window");
+            setValues(
+                Math.round(d.temperature_2m_max[idx]),
+                Math.round(d.precipitation_sum[idx]),
+                Math.round(d.windspeed_10m_max[idx]),
+                "Forecast"
+            );
+        } catch(e) {
+            document.getElementById("status").textContent = "Error loading forecast";
+        }
+    }
+})();
+</script>
+
+</body>
+</html>
