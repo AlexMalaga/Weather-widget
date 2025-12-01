@@ -74,7 +74,7 @@
 <script>
 // Read event date from URL
 const params = new URLSearchParams(window.location.search);
-let EVENT_DATE = params.get("Job Date") || "2025-06-20";
+let EVENT_DATE = params.get("Job Date") || "2026-06-20";
 
 // CONFIG
 // -----------------------------
